@@ -5,3 +5,5 @@ Requires-Python: >=3.12
 Requires-Dist: fastapi
 Requires-Dist: uvicorn
 Requires-Dist: pydantic
+Requires-Dist: sqlalchemy>=2.0
+Requires-Dist: psycopg2-binary

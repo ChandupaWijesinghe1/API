@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: chandupa
+      POSTGRES_PASSWORD: Cha@1234
+      POSTGRES_DB: items
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432" #ports has mapped here.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chandupa -d items"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Use this URL when your app connects to Postgres (inside Docker network, host name is `db`).
+      DATABASE_URL: postgresql://chandupa:Cha%401234@db:5432/items
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

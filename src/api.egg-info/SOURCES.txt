@@ -6,4 +6,7 @@ src/api.egg-info/dependency_links.txt
 src/api.egg-info/requires.txt
 src/api.egg-info/top_level.txt
 src/app/__init__.py
+src/app/database.py
 src/app/main.py
+src/app/models.py
+tests/test_items_api.py

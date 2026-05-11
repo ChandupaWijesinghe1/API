@@ -1,24 +1,5 @@
-from pathlib import Path
-import sys
-
-import pytest
 from fastapi.testclient import TestClient
-
-sys.path.append(str(Path(__file__).resolve().parents[1] / "src"))
-
-from app.main import app, _items  # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def clear_store():
-    _items.clear()
-    yield
-    _items.clear()
-
-
-@pytest.fixture
-def client() -> TestClient:
-    return TestClient(app)
+import pytest
 
 
 def test_health_returns_ok(client: TestClient):
@@ -122,3 +103,85 @@ def test_delete_twice_returns_204_then_404(client: TestClient):
     second_delete = client.delete(f"/items/{created['id']}")
     assert second_delete.status_code == 404
     assert second_delete.json() == {"detail": "Item not found."}
+
+
+def test_put_replaces_all_fields_and_updates_timestamp(client: TestClient):
+    created = client.post(
+        "/items",
+        json={
+            "name": "Monitor",
+            "description": "old",
+            "quantity": 1,
+            "status": "active",
+        },
+    ).json()
+
+    replaced = client.put(
+        f"/items/{created['id']}",
+        json={
+            "name": "Monitor 2",
+            "description": "new",
+            "quantity": 2,
+            "status": "inactive",
+        },
+    )
+    assert replaced.status_code == 200
+    body = replaced.json()
+    assert body["name"] == "Monitor 2"
+    assert body["description"] == "new"
+    assert body["quantity"] == 2
+    assert body["status"] == "inactive"
+    assert body["created_at"] == created["created_at"]
+    assert body["updated_at"] != created["updated_at"]
+
+
+def test_put_missing_item_returns_404(client: TestClient):
+    missing_id = "00000000-0000-0000-0000-000000000001"
+    response = client.put(
+        f"/items/{missing_id}",
+        json={"name": "A", "description": "B", "quantity": 1, "status": "active"},
+    )
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Item not found."}
+
+
+def test_patch_missing_item_returns_404(client: TestClient):
+    missing_id = "00000000-0000-0000-0000-000000000001"
+    response = client.patch(f"/items/{missing_id}", json={"name": "Updated"})
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Item not found."}
+
+
+def test_patch_empty_payload_returns_422(client: TestClient):
+    created = client.post("/items", json={"name": "Chair", "quantity": 1, "status": "active"}).json()
+    response = client.patch(f"/items/{created['id']}", json={})
+    assert response.status_code == 422
+    assert "At least one field must be provided" in str(response.json())
+
+
+@pytest.mark.parametrize(
+    "payload,error_fragment",
+    [
+        ({"name": "", "quantity": 1, "status": "active"}, "string_too_short"),
+        ({"name": "Pen", "quantity": 0, "status": "active"}, "greater_than_equal"),
+        ({"name": "Pen", "quantity": 1, "status": "paused"}, "literal_error"),
+        ({"quantity": 1, "status": "active"}, "missing"),
+    ],
+)
+def test_post_validation_edge_cases(client: TestClient, payload: dict, error_fragment: str):
+    response = client.post("/items", json=payload)
+    assert response.status_code == 422
+    assert error_fragment in str(response.json())
+
+
+@pytest.mark.parametrize(
+    "query,expected_error",
+    [
+        ({"status": "paused"}, "literal_error"),
+        ({"search": ""}, "string_too_short"),
+    ],
+)
+def test_list_validation_query_edge_cases(client: TestClient, query: dict, expected_error: str):
+    response = client.get("/items", params=query)
+    assert response.status_code == 422
+    assert expected_error in str(response.json())

@@ -6,4 +6,6 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "pydantic",
+    "sqlalchemy>=2.0",
+    "psycopg2-binary",
 ]
